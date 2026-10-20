@@ -57,3 +57,88 @@ class UserRegistrationTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username="mehdi").exists())
+
+
+class UserViewTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("profile")
+        self.user = User.objects.create_user(
+            username="mehdi",
+            email="mehdi@example.com",
+            password="StrongPass123!@#",
+        )
+
+    def authenticate(self):
+        self.client.force_authenticate(user=self.user)
+
+    def test_retrieve_profile_without_authentication(self):
+        response = self.client.get(self.url)
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+
+    def test_retrieve_profile_successfully(self):
+        self.authenticate()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], self.user.id)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(response.data["username"], self.user.username)
+
+    def test_update_profile_successfully(self):
+        self.authenticate()
+
+        data = {
+            "username": "new_username",
+            "first_name": "Mehdi",
+            "last_name": "Tester",
+        }
+        response = self.client.patch(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "new_username")
+        self.assertEqual(self.user.first_name, "Mehdi")
+        self.assertEqual(self.user.last_name, "Tester")
+
+    def test_update_profile_does_not_change_email(self):
+        self.authenticate()
+
+        data = {"email": "hacked@example.com"}
+        response = self.client.patch(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "mehdi@example.com")
+
+    def test_user_cannot_change_is_staff_through_profile(self):
+        self.authenticate()
+
+        self.assertFalse(self.user.is_staff)
+
+        data = {"is_staff": True}
+        response = self.client.patch(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_staff)
+        self.assertNotIn("is_staff", response.data)
