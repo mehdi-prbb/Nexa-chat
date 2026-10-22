@@ -135,3 +135,8 @@ MAILERS = {
 
 # Authentication
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+AUTHENTICATION_BACKENDS = [
+    'accounts.authenticate.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]

@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.urls import reverse
 
 User = get_user_model()
@@ -142,3 +142,37 @@ class UserViewTests(APITestCase):
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_staff)
         self.assertNotIn("is_staff", response.data)
+
+
+class EmailBackendTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="mehdi",
+            email="mehdi@example.com",
+            password="StrongPass123!@#",
+        )
+
+    def test_authenticate_with_correct_credentials(self):
+        user = authenticate(
+            email="mehdi@example.com",
+            password="StrongPass123!@#",
+        )
+
+        self.assertIsNotNone(user)
+        self.assertEqual(user.pk, self.user.pk)
+
+    def test_authenticate_with_wrong_password(self):
+        user = authenticate(
+            email="mehdi@example.com",
+            password="WrongPass123!@#",
+        )
+
+        self.assertIsNone(user)
+
+    def test_authenticate_with_unknown_email(self):
+        user = authenticate(
+            email="unknown@example.com",
+            password="StrongPass123!@#",
+        )
+
+        self.assertIsNone(user)

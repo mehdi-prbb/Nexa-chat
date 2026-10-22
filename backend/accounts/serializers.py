@@ -54,4 +54,10 @@ class UserSerializer(serializers.ModelSerializer):
 
         read_only_fields = ['id', 'email']
 
+
+class LoginSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['email', 'password']
+
     
