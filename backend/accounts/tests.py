@@ -4,6 +4,8 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import authenticate, get_user_model
 from django.urls import reverse
 
+from rest_framework_simplejwt.tokens import RefreshToken
+
 User = get_user_model()
 
 
@@ -250,4 +252,54 @@ class LoginViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn("refresh", response.data)
+        self.assertNotIn("access", response.data)
+
+
+class TokenRefreshViewTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("token_refresh")
+        self.user = User.objects.create_user(
+            username="mehdi",
+            email="mehdi@example.com",
+            password="StrongPass123!@#",
+        )
+
+    def test_refresh_with_valid_token_returns_new_access_token(self):
+        refresh = RefreshToken.for_user(self.user)
+
+        response = self.client.post(
+            self.url,
+            {"refresh": str(refresh)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {response.data['access']}",
+        )
+        profile_response = self.client.get(reverse("profile"))
+
+        self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(profile_response.data["email"], self.user.email)
+
+    def test_refresh_with_invalid_token_is_unauthorized(self):
+        response = self.client.post(
+            self.url,
+            {"refresh": "invalid.jwt.token"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn("access", response.data)
+
+    def test_refresh_without_token_is_rejected(self):
+        response = self.client.post(
+            self.url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotIn("access", response.data)
