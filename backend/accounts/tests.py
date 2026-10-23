@@ -176,3 +176,78 @@ class EmailBackendTests(APITestCase):
         )
 
         self.assertIsNone(user)
+
+
+class LoginViewTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("login")
+        self.credentials = {
+            "email": "mehdi@example.com",
+            "password": "StrongPass123!@#",
+        }
+        self.user = User.objects.create_user(
+            username="mehdi",
+            email="mehdi@example.com",
+            password="StrongPass123!@#",
+        )
+
+    def test_login_successfully_issues_tokens(self):
+        response = self.client.post(
+            self.url,
+            self.credentials,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("refresh", response.data)
+        self.assertIn("access", response.data)
+
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {response.data['access']}",
+        )
+        profile_response = self.client.get(reverse("profile"))
+
+        self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(profile_response.data["email"], self.user.email)
+
+    def test_login_with_wrong_password(self):
+        data = self.credentials.copy()
+        data["password"] = "WrongPass123!@#"
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("refresh", response.data)
+        self.assertNotIn("access", response.data)
+
+    def test_login_with_unknown_email(self):
+        data = self.credentials.copy()
+        data["email"] = "unknown@example.com"
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("refresh", response.data)
+        self.assertNotIn("access", response.data)
+
+    def test_login_with_inactive_user(self):
+        self.user.is_active = False
+        self.user.save()
+
+        response = self.client.post(
+            self.url,
+            self.credentials,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("refresh", response.data)
+        self.assertNotIn("access", response.data)

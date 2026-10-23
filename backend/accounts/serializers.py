@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
@@ -55,9 +56,24 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'email']
 
 
-class LoginSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ['email', 'password']
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
 
-    
+    def validate(self, attrs):
+
+        user = authenticate(
+            request=self.context.get('request'),
+            email=attrs['email'],
+            password=attrs['password'],
+        )
+
+        if user is None:
+            raise serializers.ValidationError(
+                'Inavalid email or password.'
+            )
+        attrs['user'] = user
+        return attrs
